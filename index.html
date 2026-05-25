@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bài 7: Đồ thị độ dịch chuyển - thời gian</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <script>
+        MathJax = {
+            tex: {
+                inlineMath: [['$', '$'], ['\\(', '\\)']],
+                displayMath: [['$$', '$$'], ['\\[', '\\]']],
+                processEscapes: true
+            },
+            svg: { fontCache: 'global' }
+        };
+    </script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        .drag-item { cursor: grab; }
+        .drag-item:active { cursor: grabbing; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        .fade-enter-active, .fade-leave-active { transition: opacity 0.3s ease, transform 0.3s ease; }
+        .fade-enter-from, .fade-leave-to { opacity: 0; transform: translate(-50%, -10px); }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800">
+    <div id="app" class="max-w-6xl mx-auto p-4 flex flex-col h-screen overflow-hidden relative">
+        
+        <transition name="fade">
+            <div v-if="toast.show" 
+                 class="absolute top-20 left-1/2 transform -translate-x-1/2 z-50 px-6 py-3 rounded-lg shadow-xl text-white font-bold text-center"
+                 :class="toast.isError ? 'bg-red-600' : 'bg-green-600'">
+                <span v-html="toast.message"></span>
+            </div>
+        </transition>
+
+        <header class="bg-blue-900 text-white p-4 rounded-t-lg shadow-md flex justify-between items-center flex-shrink-0">
+            <div>
+                <h1 class="text-2xl font-bold">VẬT LÍ 10 - BÀI 7 (YÊU CẦU 15)</h1>
+                <p class="text-sm opacity-90">Đồ thị độ dịch chuyển - thời gian của chuyển động thẳng</p>
+            </div>
+            <div class="hidden md:block font-semibold italic text-blue-300">
+                Chương II: Động học
+            </div>
+        </header>
+
+        <nav class="bg-white shadow-md flex overflow-x-auto no-scrollbar rounded-b-lg mb-4 flex-shrink-0">
+            <button v-for="(tab, index) in tabs" :key="index" 
+                @click="changeTab(index + 1)"
+                class="flex-1 py-3 px-4 font-semibold text-center border-b-4 transition-colors whitespace-nowrap"
+                :class="activeTab === index + 1 ? 'border-blue-700 text-blue-700 bg-blue-50' : 'border-transparent text-gray-600 hover:bg-gray-100'">
+                {{ tab }}
+            </button>
+        </nav>
+
+        <main class="flex-1 overflow-y-auto bg-white rounded-lg shadow-md p-6 no-scrollbar relative">
+            
+            <div v-show="activeTab === 1" class="h-full flex flex-col">
+                <h2 class="text-xl font-bold text-blue-800 mb-2 border-b pb-2">🕹️ Hoạt động: Thiết lập hệ trục d - t tiêu chuẩn</h2>
+                <p class="italic text-gray-600 text-xs mb-4">Kéo các nhãn đại lượng vật lý thả vào đúng vị trí trục tọa độ vuông góc phẳng tương ứng.</p>
+                
+                <div class="p-4 bg-gray-50 rounded-lg min-h-[80px] flex justify-center gap-4 border-2 border-dashed border-gray-300 mb-6 flex-shrink-0"
+                     @dragover.prevent @drop="drop('source')">
+                    <div v-for="item in sourceLabels" :key="item.id"
+                         draggable="true" @dragstart="dragStart(item, 'source')"
+                         class="drag-item bg-white border-2 border-blue-500 text-blue-900 font-bold px-4 py-2 rounded shadow text-xs hover:bg-blue-50 transition">
+                        {{ item.text }}
+                    </div>
+                    <div v-if="sourceLabels.length === 0" class="text-green-600 font-bold italic text-sm self-center">
+                        🎉 Chúc mừng! Bạn đã gán đúng định dạng hai trục tọa độ động học phẳng!
+                    </div>
+                </div>
+
+                <div class="flex-1 border border-gray-200 rounded-lg bg-slate-50 flex items-center justify-center p-6 relative">
+                    <svg viewBox="0 0 400 300" class="w-full max-w-[500px] h-auto">
+                        <line x1="50" y1="20" x2="50" y2="250" stroke="#1e293b" stroke-width="2"/>
+                        <path d="M 47 25 L 50 15 L 53 25 Z" fill="#1e293b"/>
+                        
+                        <line x1="50" y1="250" x2="380" y2="250" stroke="#1e293b" stroke-width="2"/>
+                        <path d="M 375 247 L 385 250 L 375 253 Z" fill="#1e293b"/>
+                        
+                        <text x="35" y="265" font-size="12" font-weight="bold" fill="#475569">O</text>
+                    </svg>
+
+                    <div class="absolute top-12 left-[30%] md:left-[36%] -translate-x-1/2 p-2 border-2 border-dashed rounded w-44 text-center text-xs font-semibold"
+                         :class="axisY.items.length > 0 ? 'bg-green-100 border-green-500' : 'bg-red-50 border-red-300 text-red-700'"
+                         @dragover.prevent @drop="drop('y')">
+                        <span v-if="axisY.items.length === 0">Thả nhãn Trục Tung vào đây</span>
+                        <div v-for="item in axisY.items" :key="item.id" class="text-green-900 font-bold">🎯 {{ item.text }}</div>
+                    </div>
+
+                    <div class="absolute bottom-12 right-[12%] p-2 border-2 border-dashed rounded w-44 text-center text-xs font-semibold"
+                         :class="axisX.items.length > 0 ? 'bg-green-100 border-green-500' : 'bg-red-50 border-red-300 text-red-700'"
+                         @dragover.prevent @drop="drop('x')">
+                        <span v-if="axisX.items.length === 0">Thả nhãn Trục Hoành vào đây</span>
+                        <div v-for="item in axisX.items" :key="item.id" class="text-green-900 font-bold">🎯 {{ item.text }}</div>
+                    </div>
+                </div>
+            </div>
+
+            <div v-show="activeTab === 2">
+                <h2 class="text-xl font-bold text-blue-800 mb-4 border-b pb-2">📚 Kỹ thuật nối điểm & Nhận diện hình dáng đồ thị</h2>
+                
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+                    <div class="space-y-4 text-sm leading-relaxed">
+                        <div class="bg-gray-50 border p-4 rounded-lg shadow-sm">
+                            <h3 class="font-bold text-gray-800 text-base mb-2">1. Quy trình dựng đồ thị gián tiếp</h3>
+                            <p class="mb-2"><strong>Bước 1:</strong> Chọn hệ trục tọa độ vuông góc $d - t$. Chia thang đo đều trên mỗi trục dựa vào giá trị lớn nhất trong bảng số liệu thực nghiệm.</p>
+                            <p class="mb-2"><strong>Bước 2:</strong> Xác định vị trí các điểm nút dữ liệu dựa vào các cặp tọa độ $(t, d)$.</p>
+                            <p><strong>Bước 3:</strong> Nối tuần tự các điểm nút từ trái sang phải bằng thước thẳng để hoàn thiện đường biểu diễn đồ thị.</p>
+                        </div>
+                        
+                        <div class="bg-blue-50 border-l-4 border-blue-700 p-4 rounded-lg text-xs space-y-1.5 text-blue-900">
+                            <h3 class="font-bold text-sm">💡 Đặc trưng động học của hình dáng đồ thị:</h3>
+                            <p>• <strong>Đường thẳng xiên góc đi lên:</strong> Vật chuyển động thẳng đều theo chiều dương ($v > 0$).</p>
+                            <p>• <strong>Đường thẳng xiên góc đi xuống:</strong> Vật chuyển động thẳng đều theo chiều ngược lại ($v < 0$).</p>
+                            <p>• <strong>Đường thẳng nằm ngang song song trục Ot:</strong> Vật đứng yên ($v = 0$).</p>
+                        </div>
+                    </div>
+
+                    <div class="bg-white rounded-lg border p-4 flex flex-col items-center justify-center min-h-[250px] shadow-sm">
+                        <svg viewBox="0 0 300 200" class="w-full h-auto">
+                            <line x1="40" y1="20" x2="40" y2="170" stroke="#334155" stroke-width="2"/>
+                            <line x1="40" y1="170" x2="280" y2="170" stroke="#334155" stroke-width="2"/>
+                            <text x="25" y="25" font-size="10" font-weight="bold" fill="#334155">d (m)</text>
+                            <text x="270" y="185" font-size="10" font-weight="bold" fill="#334155">t (s)</text>
+                            <text x="28" y="180" font-size="10" fill="#334155">O</text>
+
+                            <line x1="40" y1="170" x2="120" y2="70" stroke="#10b981" stroke-width="3"/>
+                            <text x="65" y="110" fill="#10b981" font-weight="bold" font-size="9" transform="rotate(-38, 65, 110)">Tiến (v > 0)</text>
+
+                            <line x1="120" y1="70" x2="200" y2="70" stroke="#3b82f6" stroke-width="3"/>
+                            <text x="135" y="60" fill="#3b82f6" font-weight="bold" font-size="9">Đứng yên (v = 0)</text>
+
+                            <line x1="200" y1="70" x2="270" y2="140" stroke="#ef4444" stroke-width="3"/>
+                            <text x="220" y="95" fill="#ef4444" font-weight="bold" font-size="9" transform="rotate(38, 220, 95)">Lùi (v < 0)</text>
+                        </svg>
+                        <p class="text-[11px] text-gray-500 italic mt-3 text-center">Sơ đồ tổng hợp mối liên hệ giữa hình dáng đồ thị $d-t$ và trạng thái chuyển động.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div v-show="activeTab === 3" class="h-full flex flex-col">
+                <h2 class="text-xl font-bold text-blue-800 mb-2 border-b pb-2">🔬 Xưởng vẽ đồ thị & Thiết kế hành trình xe chạy</h2>
+                
+                <div class="bg-gray-50 p-4 rounded-lg mb-4 flex flex-col md:flex-row gap-6 border flex-shrink-0 items-center">
+                    <div class="flex-1 w-full space-y-3">
+                        <p class="text-xs font-bold text-gray-700 uppercase tracking-wider">Bảng số liệu thiết kế tọa độ vị trí vật:</p>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="text-xs font-semibold text-gray-600 flex justify-between">Vị trí tại $t_1 = 0\text{ s}$: <span class="text-blue-600 font-bold">{{ dNodes[0] }} m</span></label>
+                                <input type="range" v-model.number="dNodes[0]" min="0" max="50" class="w-full accent-blue-600 cursor-pointer" :disabled="isSimulating">
+                            </div>
+                            <div>
+                                <label class="text-xs font-semibold text-gray-600 flex justify-between">Vị trí tại $t_2 = 2\text{ s}$: <span class="text-blue-600 font-bold">{{ dNodes[1] }} m</span></label>
+                                <input type="range" v-model.number="dNodes[1]" min="0" max="50" class="w-full accent-blue-600 cursor-pointer" :disabled="isSimulating" @input="updateChart">
+                            </div>
+                            <div>
+                                <label class="text-xs font-semibold text-gray-600 flex justify-between">Vị trí tại $t_3 = 5\text{ s}$: <span class="text-blue-600 font-bold">{{ dNodes[2] }} m</span></label>
+                                <input type="range" v-model.number="dNodes[2]" min="0" max="50" class="w-full accent-blue-600 cursor-pointer" :disabled="isSimulating" @input="updateChart">
+                            </div>
+                            <div>
+                                <label class="text-xs font-semibold text-gray-600 flex justify-between">Vị trí tại $t_4 = 8\text{ s}$: <span class="text-blue-600 font-bold">{{ dNodes[3] }} m</span></label>
+                                <input type="range" v-model.number="dNodes[3]" min="0" max="50" class="w-full accent-blue-600 cursor-pointer" :disabled="isSimulating" @input="updateChart">
+                            </div>
+                        </div>
+                        <button @click="runSimulation" :disabled="isSimulating"
+                                class="w-full py-2 bg-blue-700 text-white font-bold rounded shadow hover:bg-blue-800 transition disabled:bg-gray-400">
+                            🎬 CHẠY MÔ PHỎNG ĐỒNG BỘ ĐỘNG HỌC
+                        </button>
+                    </div>
+
+                    <div class="w-full md:w-4/12 bg-white border p-4 rounded-lg shadow-inner flex flex-col gap-2">
+                        <div class="text-center font-bold text-xs text-gray-400">ĐỒNG HỒ ĐO ĐỘNG HỌC</div>
+                        <div class="flex justify-between text-sm">
+                            <span>Thời gian ($t$):</span>
+                            <span class="font-mono font-bold text-blue-600"><span>{{ currentAnimTime.toFixed(1) }}</span> s</span>
+                        </div>
+                        <div class="flex justify-between text-sm border-b pb-2">
+                            <span>Độ dịch chuyển ($d$):</span>
+                            <span class="font-mono font-bold text-green-600"><span>{{ currentD.toFixed(1) }}</span> m</span>
+                        </div>
+                        <div class="text-xs text-center font-medium bg-slate-900 text-green-400 py-1.5 rounded mt-1">
+                            Trạng thái xe: <span class="text-white font-bold">{{ carStatus }}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-4 min-h-[250px]">
+                    <div class="bg-slate-900 rounded-lg p-4 relative flex flex-col justify-between border shadow-inner">
+                        <span class="text-[10px] font-bold text-slate-500 tracking-wider">ĐƯỜNG CHẠY THỰC TẾ CỦA XE (Quỹ đạo thẳng)</span>
+                        
+                        <div class="w-full h-24 relative bg-slate-800 rounded border border-slate-700 mt-4 flex items-center">
+                            <div class="absolute bottom-0 left-0 right-0 h-4 bg-slate-700 flex justify-between px-4 text-[9px] text-slate-400 font-mono font-bold">
+                                <span>0m</span><span>10m</span><span>20m</span><span>30m</span><span>40m</span><span>50m</span>
+                            </div>
+                            <div class="absolute transition-none" :style="{ left: carLeftPercent + '%' }">
+                                <div class="w-12 h-6 bg-amber-500 rounded relative shadow-lg">
+                                    <div class="w-3 h-2 bg-sky-200 absolute top-1 right-1 rounded-sm"></div>
+                                    <div class="w-3 h-3 bg-black rounded-full absolute -bottom-1 left-1.5 border"></div>
+                                    <div class="w-3 h-3 bg-black rounded-full absolute -bottom-1 right-1.5 border"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <p class="text-[10px] text-slate-400 italic mt-2">
+                            * Phân tích sư phạm: Khi đồ thị d - t nằm ngang, xe sẽ đứng yên. Khi đồ thị đi xuống, xe tự động cài số lùi chạy ngược về phía mốc O.
+                        </p>
+                    </div>
+
+                    <div class="bg-white rounded-lg p-4 border shadow-inner flex flex-col justify-between">
+                        <span class="text-xs font-bold text-gray-500 tracking-wider">ĐỒ THỊ ĐỘ DỊCH CHUYỂN - THỜI GIAN (d - t)</span>
+                        <div class="flex-1 relative w-full h-[180px] mt-2">
+                            <canvas id="dtLineChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div v-show="activeTab === 4">
+                <h2 class="text-xl font-bold text-blue-800 mb-4 border-b pb-2">📝 Trắc nghiệm Phân tích Đồ thị Động học</h2>
+                
+                <div class="space-y-6">
+                    <div v-for="(q, qIndex) in questions" :key="q.id" class="bg-gray-50 p-5 rounded-lg border">
+                        <p class="font-bold text-gray-800 mb-3">Câu {{ qIndex + 1 }}: <span v-html="q.text"></span></p>
+                        
+                        <div class="flex flex-col gap-2">
+                            <button v-for="(opt, oIndex) in q.options" :key="oIndex"
+                                @click="selectOption(q.id, oIndex)"
+                                class="text-left px-4 py-3 border rounded-md transition-all duration-200"
+                                :class="getOptionClass(q, oIndex)">
+                                <span class="font-bold mr-2">{{ String.fromCharCode(65 + oIndex) }}.</span>
+                                <span v-html="opt.text"></span>
+                            </button>
+                        </div>
+                        
+                        <div v-if="q.selected !== null" 
+                             class="mt-3 p-4 rounded-md text-sm border font-medium leading-relaxed"
+                             :class="q.options[q.selected].isCorrect ? 'bg-green-100 border-green-400 text-green-800' : 'bg-red-100 border-red-400 text-red-900'">
+                            💡 <strong>Phân tích kĩ thuật:</strong> <span v-html="q.options[q.selected].feedback"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+        </main>
+    </div>
+
+    <script>
+        const { createApp, ref, computed, onMounted, nextTick } = Vue;
+
+        createApp({
+            setup() {
+                const tabs = ['1. Khởi động', '2. Lý thuyết', '3. Mô phỏng', '4. Trắc nghiệm'];
+                const activeTab = ref(1);
+                let chartInstance = null;
+
+                const triggerMathJax = () => {
+                    nextTick(() => {
+                        if (window.MathJax && window.MathJax.typesetClear) {
+                            window.MathJax.typesetClear();
+                            window.MathJax.typesetPromise().catch((err) => console.log(err));
+                        }
+                    });
+                };
+
+                const changeTab = (tabIndex) => {
+                    activeTab.value = tabIndex;
+                    if (tabIndex === 3) {
+                        nextTick(() => initChart());
+                    }
+                    triggerMathJax();
+                };
+
+                // --- TAB 1: KÉO THẢ DỰNG TRỤC TỌA ĐỘ ---
+                const draggedItem = ref(null);
+                const toast = ref({ show: false, message: '', isError: false });
+
+                const showToast = (msg, isError = false) => {
+                    toast.value = { show: true, message: msg, isError };
+                    setTimeout(() => { toast.value.show = false; }, 2000);
+                };
+
+                const sourceLabels = ref([
+                    { id: 'd', text: 'Độ dịch chuyển d (m) -> Trục Tung' },
+                    { id: 't', text: 'Thời gian t (s) -> Trục Hoành' }
+                ].sort(() => Math.random() - 0.5));
+
+                const axisX = ref({ id: 'x', items: [] });
+                const axisY = ref({ id: 'y', items: [] });
+
+                const dragStart = (item, sourceId) => { draggedItem.value = { item, sourceId }; };
+                
+                const drop = (targetId) => {
+                    if (!draggedItem.value) return;
+                    const { item, sourceId } = draggedItem.value;
+                    
+                    if (targetId === sourceId) return;
+
+                    // Kiểm tra tính chuẩn xác của vị trí thả
+                    if ((targetId === 'x' && item.id !== 't') || (targetId === 'y' && item.id !== 'd')) {
+                        showToast('❌ Nhầm trục rồi! Hãy nhớ: Độ dịch chuyển biểu diễn trên trục đứng, Thời gian luôn nằm ngang.', true);
+                        draggedItem.value = null; return;
+                    }
+
+                    showToast('✅ Thiết lập trục tọa độ hoàn toàn chính xác!', false);
+
+                    if (sourceId === 'source') sourceListFiltering(item.id);
+                    if (targetId === 'x') axisX.value.items.push(item);
+                    if (targetId === 'y') axisY.value.items.push(item);
+                    draggedItem.value = null;
+                };
+
+                const sourceListFiltering = (id) => {
+                    sourceLabels.value = sourceLabels.value.filter(i => i.id !== id);
+                };
+
+                // --- TAB 3: XƯỞNG MÔ PHỎNG VÀ VẼ ĐỒ THỊ CHART.JS ---
+                const dNodes = ref([10, 30, 30, 10]); // Vị trí mặc định tại các mốc t = [0, 2, 5, 8]
+                const tNodes = [0, 2, 5, 8];
+                
+                const isSimulating = ref(false);
+                const currentAnimTime = ref(0);
+                const currentD = ref(10);
+                const carStatus = ref("Đang chờ lệnh");
+
+                const carLeftPercent = computed(() => {
+                    // Ánh xạ d từ khoảng [0, 50]m sang phần trăm vị trí left từ [5, 85]% của track chạy
+                    return 5 + (currentD.value / 50) * 80;
+                });
+
+                const initChart = () => {
+                    const canvas = document.getElementById('dtLineChart');
+                    if (!canvas) return;
+                    if (chartInstance) chartInstance.destroy();
+
+                    const ctx = canvas.getContext('2d');
+                    chartInstance = new Chart(ctx, {
+                        type: 'line',
+                        data: {
+                            labels: tNodes,
+                            datasets: [{
+                                label: 'Đường biểu diễn d - t',
+                                data: [...dNodes.value], // Dùng mảng giá trị thô để tránh lỗi proxy Vue
+                                borderColor: '#1d4ed8',
+                                backgroundColor: 'rgba(29, 78, 216, 0.1)',
+                                borderWidth: 3,
+                                pointBackgroundColor: '#ef4444',
+                                pointRadius: 6,
+                                tension: 0 // Đường thẳng nối nối các điểm nút theo yêu cầu sư phạm
+                            }]
+                        },
+                        options: {
+                            responsive: true, maintainAspectRatio: false,
+                            scales: {
+                                x: { title: { display: true, text: 'Thời gian t (s)', font: {weight: 'bold'} }, min: 0, max: 8 },
+                                y: { title: { display: true, text: 'Độ dịch chuyển d (m)', font: {weight: 'bold'} }, min: 0, max: 50 }
+                            },
+                            plugins: { legend: { display: false } }
+                        }
+                    });
+                };
+
+                const updateChart = () => {
+                    if (chartInstance) {
+                        chartInstance.data.datasets[0].data = [...dNodes.value];
+                        chartInstance.update('none');
+                    }
+                };
+
+                const runSimulation = () => {
+                    if (isSimulating.value) return;
+                    isSimulating.value = true;
+                    
+                    let startTimestamp = null;
+                    const duration = 8000; // Mô phỏng hành trình kéo dài 8 giây thực tế để học sinh dễ nhìn
+
+                    const animate = (timestamp) => {
+                        if (!startTimestamp) startTimestamp = timestamp;
+                        const elapsed = timestamp - startTimestamp;
+                        
+                        // Tính toán thời gian động học mô phỏng t_sim từ 0 đến 8s
+                        const tSim = Math.min((elapsed / duration) * 8, 8);
+                        currentAnimTime.value = tSim;
+
+                        // Tìm khoảng thời gian tuyến tính để nội suy vị trí d tương ứng
+                        let dSim = dNodes.value[0];
+                        let status = "Đứng yên";
+
+                        if (tSim >= 0 && tSim < 2) {
+                            const f = (tSim - 0) / (2 - 0);
+                            dSim = dNodes.value[0] + f * (dNodes.value[1] - dNodes.value[0]);
+                            status = dNodes.value[1] > dNodes.value[0] ? "Chạy tiến thẳng đều" : (dNodes.value[1] < dNodes.value[0] ? "Cài số lùi" : "Đứng yên");
+                        } else if (tSim >= 2 && tSim < 5) {
+                            const f = (tSim - 2) / (5 - 2);
+                            dSim = dNodes.value[1] + f * (dNodes.value[2] - dNodes.value[1]);
+                            status = dNodes.value[2] > dNodes.value[1] ? "Chạy tiến thẳng đều" : (dNodes.value[2] < dNodes.value[1] ? "Cài số lùi" : "Đứng yên");
+                        } else if (tSim >= 5 && tSim <= 8) {
+                            const f = (tSim - 5) / (8 - 5);
+                            dSim = dNodes.value[2] + f * (dNodes.value[3] - dNodes.value[2]);
+                            status = dNodes.value[3] > dNodes.value[2] ? "Chạy tiến thẳng đều" : (dNodes.value[3] < dNodes.value[2] ? "Cài số lùi" : "Đứng yên");
+                        }
+
+                        currentD.value = dSim;
+                        carStatus.value = status;
+
+                        if (tSim < 8) {
+                            requestAnimationFrame(animate);
+                        } else {
+                            isSimulating.value = false;
+                            carStatus.value = "Hoàn thành hành trình";
+                        }
+                    };
+
+                    requestAnimationFrame(animate);
+                };
+
+                // --- TAB 4: TRẮC NGHIỆM PHẢN BIỆN (4 ĐÁP ÁN CHUẨN) ---
+                const questions = ref([
+                    {
+                        id: 1,
+                        text: 'Một đoạn đồ thị độ dịch chuyển - thời gian ($d - t$) là một đường thẳng nằm ngang song song với trục thời gian Ot. Trạng thái động học của vật lúc này là:',
+                        options: [
+                            { text: 'Vật đang chuyển động thẳng đều theo chiều dương.', isCorrect: false, feedback: 'Bẫy: Chuyển động thẳng đều theo chiều dương phải là đường thẳng xiên góc đi lên.' },
+                            { text: 'Vật đang đứng yên tại một vị trí cố định.', isCorrect: true, feedback: 'Đúng: Đường nằm ngang chứng tỏ thời gian trôi đi nhưng giá trị độ dịch chuyển $d$ không đổi, tức là vật đứng yên.' },
+                            { text: 'Vật đang chuyển động nhanh dần đều.', isCorrect: false, feedback: 'Bẫy: Trong phạm vi chương trình, đồ thị $d-t$ của chuyển động thẳng đều chỉ là đường thẳng, không biểu diễn nhanh dần đều dưới dạng đường cong parabol ở bài này.' },
+                            { text: 'Vật chuyển động lùi lại theo chiều âm.', isCorrect: false, feedback: 'Bẫy: Chuyển động lùi phải có đồ thị xiên góc đi xuống.' }
+                        ], selected: null
+                    },
+                    {
+                        id: 2,
+                        text: 'Độ dốc (hệ số góc) của đường biểu diễn đồ thị độ dịch chuyển - thời gian ($d - t$) có giá trị bằng đại lượng động học nào sau đây?',
+                        options: [
+                            { text: 'Gia tốc của chuyển động.', isCorrect: false, feedback: 'Bẫy: Hệ số góc của đồ thị vận tốc - thời gian mới là gia tốc. Ở đây là đồ thị $d-t$.' },
+                            { text: 'Quãng đường tổng cộng vật đi được.', isCorrect: false, feedback: 'Bẫy: Quãng đường không được tính bằng độ dốc.' },
+                            { text: 'Vận tốc của chuyển động thẳng.', isCorrect: true, feedback: 'Đúng: Độ dốc hệ số góc được tính bằng tỉ số $\\frac{\\Delta d}{\\Delta t}$, giá trị này có độ lớn bằng chính vận tốc $v$ của chuyển động.' },
+                            { text: 'Thời gian chuyển động của vật.', isCorrect: false, feedback: 'Bẫy: Thời gian được đọc trực tiếp từ trục hoành.' }
+                        ], selected: null
+                    },
+                    {
+                        id: 3,
+                        text: 'Nếu đồ thị độ dịch chuyển - thời gian của một vật là một đường thẳng xiên góc hướng xuống phía dưới, điều này khẳng định vật:',
+                        options: [
+                            { text: 'Đang chuyển động thẳng đều ngược chiều dương (theo chiều âm).', isCorrect: true, feedback: 'Đúng: Đồ thị hướng xuống chứng tỏ độ dịch chuyển giảm dần theo thời gian, vật đang chuyển động ngược chiều dương quy ước.' },
+                            { text: 'Đang dừng lại đột ngột tại mốc tọa độ.', isCorrect: false, feedback: 'Bẫy: Dừng lại đồ thị phải lập tức chuyển sang nằm ngang.' },
+                            { text: 'Đang tăng tốc cực nhanh.', isCorrect: false, feedback: 'Bẫy: Đây là chuyển động thẳng đều theo chiều âm, vận tốc có giá trị đại số âm nhưng độ lớn không đổi.' },
+                            { text: 'Đang chuyển động thẳng đều cùng chiều dương.', isCorrect: false, feedback: 'Bẫy: Cùng chiều dương đồ thị phải hướng lên trên.' }
+                        ], selected: null
+                    },
+                    {
+                        id: 4,
+                        text: 'Sai lầm kinh điển và phổ biến nhất của học sinh khi đọc hiểu đồ thị độ dịch chuyển - thời gian ($d - t$) trong thực nghiệm là gì?',
+                        options: [
+                            { text: 'Nhầm lẫn đường biểu diễn hình học trên đồ thị chính là hình dạng quỹ đạo chuyển động thực tế trong không gian của vật.', isCorrect: true, feedback: 'Tuyệt vời: Học sinh rất dễ ngộ nhận khi thấy đồ thị xiên lên rồi đi ngang là xe đang leo dốc rồi chạy trên đỉnh núi phẳng. Thực tế, xe chỉ đang chạy tiến trên một đường thẳng tắp, rồi dừng lại!' },
+                            { text: 'Không biết cách chia thang đo cho hai trục tọa độ.', isCorrect: false, feedback: 'Bẫy: Đây chỉ là thiếu sót kĩ năng kĩ thuật vẽ, không phải sai lầm ngộ nhận bản chất cơ học.' },
+                            { text: 'Luôn tính ra giá trị vận tốc bị dương.', isCorrect: false, feedback: 'Bẫy: Sai sót về dấu đại số đơn thuần.' },
+                            { text: 'Nối các điểm nút tọa độ thành đường cong uốn lượn tùy ý.', isCorrect: false, feedback: 'Bẫy: Đây là lỗi thao tác dùng thước vẽ.' }
+                        ], selected: null
+                    }
+                ]);
+
+                const selectOption = (qId, optIdx) => {
+                    const q = questions.value.find(q => q.id === qId);
+                    if (q.selected === null) {
+                        q.selected = optIdx;
+                        triggerMathJax();
+                    }
+                };
+
+                const getOptionClass = (q, oIndex) => {
+                    if (q.selected === null) return 'bg-white hover:bg-gray-100 border-gray-300';
+                    if (q.selected === oIndex) return q.options[oIndex].isCorrect ? 'bg-green-600 text-white border-green-700' : 'bg-red-500 text-white border-red-600';
+                    if (q.options[oIndex].isCorrect) return 'bg-green-100 border-green-500 text-green-900 font-bold'; 
+                    return 'bg-gray-100 border-gray-200 opacity-60'; 
+                };
+
+                onMounted(() => {
+                    triggerMathJax();
+                });
+
+                return {
+                    tabs, activeTab, changeTab, toast, sourceLabels, axisX, axisY, dragStart, drop,
+                    dNodes, isSimulating, currentAnimTime, currentD, carStatus, carLeftPercent, runSimulation, updateChart,
+                    questions, selectOption, getOptionClass
+                };
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>
